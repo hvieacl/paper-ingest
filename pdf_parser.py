@@ -1,7 +1,7 @@
 from __future__ import annotations
 from pathlib import Path
 import re
-import fitz
+import pymupdf
 
 SECTION_HINTS = [
     "abstract", "introduction", "method", "methodology", "approach",
@@ -13,7 +13,7 @@ REFERENCES_RE = re.compile(r"(?im)^\s*(references|bibliography)\s*$")
 
 def parse_pdf(path: str | Path) -> list[str]:
     path = Path(path)
-    doc = fitz.open(path)
+    doc = pymupdf.open(path)
     pages = []
     for i, page in enumerate(doc):
         text = page.get_text("text")

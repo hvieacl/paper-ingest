@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import List
 from pydantic import BaseModel, Field, field_validator
 
-SCHEMA_VERSION = "wm-v1.0"
+SCHEMA_VERSION = "wm-v1.1"
 
 TASK_TAGS = [
     "静态场景重建",
@@ -43,7 +43,9 @@ DOMAIN_TAGS = [
     "通用视频 / 互联网数据",
 ]
 
-REPRESENTATION_TAGS = [
+# Method 统一包含“场景表示 + 建模范式 + 核心技术”。
+# 不再单独维护 Representation 维度，避免分类体系膨胀。
+METHOD_TAGS = [
     "3DGS",
     "NeRF / 神经辐射场",
     "网格 / 显式表面",
@@ -52,9 +54,6 @@ REPRESENTATION_TAGS = [
     "显式表示",
     "隐式表示",
     "Latent / Token 表示",
-]
-
-METHOD_TAGS = [
     "多视图几何 / SfM / MVS",
     "几何 / 光度优化",
     "SLAM / BA",
@@ -75,7 +74,7 @@ METHOD_TAGS = [
     "Tokenized World Representation",
 ]
 
-RESOURCE_TYPES = [
+TYPE_TAGS = [
     "研究论文",
     "综述 / 系统综述",
     "技术报告",
@@ -85,11 +84,12 @@ RESOURCE_TYPES = [
     "学位论文",
 ]
 
-PAPER_ROLES = [
+ROLE_TAGS = [
     "基础 / 奠基工作",
     "方法论文",
     "基准 / 数据集工作",
 ]
+
 
 class PaperAnalysis(BaseModel):
     title: str = ""
@@ -108,12 +108,15 @@ class PaperAnalysis(BaseModel):
     questions: List[str] = Field(default_factory=list)
     inspiration: str = ""
 
+    # 四维主分类：Task / Domain / Method / Type
     task: List[str] = Field(default_factory=list)
     domain: List[str] = Field(default_factory=list)
-    representation: List[str] = Field(default_factory=list)
     method: List[str] = Field(default_factory=list)
-    resource_type: str = "研究论文"
-    paper_role: str = "方法论文"
+    type: str = "研究论文"
+
+    # 辅助分类，不属于四维主分类
+    role: str = "方法论文"
+
     suggested_new_tags: List[str] = Field(default_factory=list)
 
     @field_validator("task")
@@ -126,28 +129,23 @@ class PaperAnalysis(BaseModel):
     def check_domain(cls, v):
         return [x for x in v if x in DOMAIN_TAGS]
 
-    @field_validator("representation")
-    @classmethod
-    def check_representation(cls, v):
-        return [x for x in v if x in REPRESENTATION_TAGS]
-
     @field_validator("method")
     @classmethod
     def check_method(cls, v):
         return [x for x in v if x in METHOD_TAGS]
 
-    @field_validator("resource_type")
+    @field_validator("type")
     @classmethod
-    def check_resource_type(cls, v):
-        return v if v in RESOURCE_TYPES else "研究论文"
+    def check_type(cls, v):
+        return v if v in TYPE_TAGS else "研究论文"
 
-    @field_validator("paper_role")
+    @field_validator("role")
     @classmethod
-    def check_paper_role(cls, v):
-        return v if v in PAPER_ROLES else "方法论文"
+    def check_role(cls, v):
+        return v if v in ROLE_TAGS else "方法论文"
 
 
-# 飞书字段名 -> PaperAnalysis 字段/固定值
+# 飞书字段名 -> PaperAnalysis 字段
 # 多选字段直接写 list；长文本字段写字符串。
 FEISHU_FIELD_MAP = {
     "标题": "title",
@@ -166,8 +164,7 @@ FEISHU_FIELD_MAP = {
     "感悟启发": "inspiration",
     "Task": "task",
     "Domain": "domain",
-    "场景表示": "representation",
     "Method": "method",
-    "文献类型": "resource_type",
-    "文献角色": "paper_role",
+    "Type": "type",
+    "Role": "role",
 }

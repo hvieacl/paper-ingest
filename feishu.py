@@ -10,11 +10,30 @@ class FeishuBitableClient:
     def __init__(self):
         self.app_id = os.environ["FEISHU_APP_ID"]
         self.app_secret = os.environ["FEISHU_APP_SECRET"]
-        self.app_token = os.environ["FEISHU_APP_TOKEN"]
-        self.table_id = os.environ["FEISHU_TABLE_ID"]
+        self.app_token = self._clean_id(os.environ["FEISHU_APP_TOKEN"], "FEISHU_APP_TOKEN")
+        self.table_id = self._clean_id(os.environ["FEISHU_TABLE_ID"], "FEISHU_TABLE_ID")
         self._token = None
         self._token_expire = 0.0
         self._fields = None
+
+    @staticmethod
+    def _clean_id(value: str, name: str) -> str:
+        """
+        容错处理从飞书 URL 中复制出来的 token/id。
+        例如误把 `tblxxxx&view=vewxxxx` 整段粘到 FEISHU_TABLE_ID，
+        会自动截取为 `tblxxxx`。
+        """
+        value = value.strip()
+        if not value:
+            raise RuntimeError(f"缺少配置：{name}")
+
+        for sep in ("?", "&", "#", "/"):
+            if sep in value:
+                value = value.split(sep, 1)[0].strip()
+
+        if not value:
+            raise RuntimeError(f"{name} 格式无效")
+        return value
 
     def _tenant_token(self) -> str:
         if self._token and time.time() < self._token_expire - 120:

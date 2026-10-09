@@ -13,13 +13,14 @@ Scholaread 继续负责 PDF 云端保存、阅读、批注和对话；本工具�
 - PyMuPDF 提取论文文本
 - 选择摘要/引言/方法/实验/结论等高价值正文页
 - DeepSeek 一次返回结构化 JSON
-- 固定 Task / Domain / 场景表示 / Method 词表
+- 固定 **Task / Domain / Method / Type** 四维分类词表
+- Role 作为辅助分类
 - Pydantic 校验
 - SHA256 去重
 - 本地 AI 结果缓存
 - 飞书多维表格字段 Schema 校验
 - 新增 / 覆盖更新记录
-- Windows 拖拽 PDF 到 `.bat`
+- Windows 拖拽 PDF 到 `load_paper.bat`
 
 不包含：
 - Scholaread API 同步
@@ -34,7 +35,23 @@ Scholaread 继续负责 PDF 云端保存、阅读、批注和对话；本工具�
 
 ---
 
-## 2. 飞书表最终字段
+## 2. 分类体系
+
+主分类只保留四维：
+
+- **Task**：这篇论文具体解决什么任务。
+- **Domain**：它应用在哪类领域或场景。
+- **Method**：它采用什么表示、建模范式和核心技术。
+- **Type**：它是什么类型的论文/资料。
+
+`Role` 只用于表示文献在个人知识体系中的角色，不属于主分类。
+
+原来的“场景表示”维度已经取消。  
+`3DGS / NeRF / Mesh / Point Cloud / Occupancy / Latent` 等统一作为 **Method** 标签维护。
+
+---
+
+## 3. 飞书表最终字段
 
 ### AI 自动填充
 
@@ -56,10 +73,9 @@ Scholaread 继续负责 PDF 云端保存、阅读、批注和对话；本工具�
 | 感悟启发 | 多行文本 | 与“重建→世界模型”主线的关联 |
 | Task | **多选** | 固定词表 |
 | Domain | **多选** | 固定词表 |
-| 场景表示 | **多选** | 固定词表 |
-| Method | **多选** | 固定词表 |
-| 文献类型 | **单选** | 研究论文/综述等 |
-| 文献角色 | **单选** | 基础/方法/基准 |
+| Method | **多选** | 表示 + 建模范式 + 核心技术 |
+| Type | **单选** | 研究论文/综述等 |
+| Role | **单选** | 基础/方法/基准 |
 
 ### 由你维护
 
@@ -82,7 +98,7 @@ Scholaread 继续负责 PDF 云端保存、阅读、批注和对话；本工具�
 
 ---
 
-## 3. 飞书权限准备
+## 4. 飞书权限准备
 
 你不需要飞书 CLI。
 
@@ -108,7 +124,7 @@ V1 不需要 view_id。
 
 ---
 
-## 4. DeepSeek 配置
+## 5. DeepSeek 配置
 
 复制：
 
@@ -133,9 +149,11 @@ DRY_RUN=1
 
 代码不把模型名写死，是为了避免以后模型升级后又改代码。
 
+**不要把 `.env`、API Key、App Secret 提交到 GitHub。**
+
 ---
 
-## 5. 安装
+## 6. 安装
 
 建议单独虚拟环境：
 
@@ -147,7 +165,7 @@ pip install -r requirements.txt
 
 ---
 
-## 6. 第一次测试：先不要写飞书
+## 7. 第一次测试：先不要写飞书
 
 `.env`：
 
@@ -162,11 +180,12 @@ python paper_ingest.py "D:\papers\OmniRe.pdf"
 ```
 
 第一次会：
+
 1. 算 PDF hash
 2. PyMuPDF 抽文本
 3. DeepSeek 分析
 4. 把完整结果缓存到 `cache/<hash>.json`
-5. 打印分类预览
+5. 打印 Task / Domain / Method / Type / Role 预览
 6. **不写飞书**
 
 如果结果没问题，再把：
@@ -177,13 +196,15 @@ DRY_RUN=0
 
 然后重新运行。因为有缓存，这次**不会再次调用 DeepSeek**，直接写飞书。
 
+如果缓存来自旧 Schema，程序会自动检测版本并重新分析，避免把旧的 Representation 数据结构写入新版飞书字段。
+
 ---
 
-## 7. 日常使用
+## 8. 日常使用
 
 Windows 最省事：
 
-> 直接把 PDF 拖到 `导入论文.bat`
+> 直接把 PDF 拖到 `load_paper.bat`
 
 如果已存在相同 PDF：
 - 默认跳过
@@ -201,12 +222,14 @@ python paper_ingest.py paper.pdf --force-ai --update
 
 ---
 
-## 8. 为什么使用 Hash + Cache
+## 9. 为什么使用 Hash + Cache
 
 ### Hash
+
 避免同一 PDF 被重复分析、重复入库。
 
 ### Cache
+
 飞书写失败、改字段、换表格时，不需要再次付一次模型调用费。
 
 因此完整流程是：
@@ -216,7 +239,7 @@ PDF
  ↓
 SHA256
  ↓
-有 cache? ──是──→ 直接复用
+有同版本 cache? ──是──→ 直接复用
  ↓否
 PDF 文本
  ↓
@@ -229,18 +252,17 @@ cache JSON
 
 ---
 
-## 9. 当前标签设计
+## 10. 当前标签设计
 
 标签词表都集中在 `schema.py`，不要散落到 Prompt 和代码各处。
 
-以后你真的开始系统读：
-- World Model
-- JEPA
-- VLA
-- Latent Dynamics
-- Model-Based RL
+Method 同时容纳：
 
-只需要修改 `schema.py` 的词表，Prompt 会自动使用最新词表。
+- 场景表示：3DGS / NeRF / Mesh / Point Cloud / Occupancy / Latent
+- 几何基础：SfM / MVS / SLAM / BA
+- 生成范式：Diffusion / Autoregressive
+- 时空建模：时序建模 / Latent Dynamics
+- 世界模型相关：JEPA / VLM / VLA / Model-Based RL
 
 原则仍然是：
 
@@ -248,20 +270,23 @@ cache JSON
 
 ---
 
-## 10. V1 的重要限制
+## 11. V1 的重要限制
 
 ### 扫描版 PDF
+
 如果 PyMuPDF 抽不到足够正文，V1 会报错，不自动 OCR。
 
 ### 图表
+
 V1 会读图注文本，但不会“看图”。复杂 Framework、消融表格、公式推导仍建议在 Scholaread / ChatGPT 精读。
 
 ### PDF 文本顺序
+
 双栏论文的 PDF 文本抽取偶尔会错序。对“总库结构化整理”通常够用；不把它当最终精读结果。
 
 ---
 
-## 11. 推荐的真实工作流
+## 12. 推荐的真实工作流
 
 ```text
 发现论文
@@ -272,9 +297,9 @@ Scholaread 收藏 / 阅读
   ├─ 否 → 只留 Scholaread
   └─ 是
       ↓
-拖 PDF → 导入论文.bat
+拖 PDF → load_paper.bat
       ↓
-DeepSeek 自动结构化 + 分类
+DeepSeek 自动结构化 + 四维分类
       ↓
 飞书总库
       ↓
@@ -286,4 +311,3 @@ DeepSeek 自动结构化 + 分类
              ↓
            复现记录
 ```
-

@@ -1,24 +1,25 @@
 @echo off
 setlocal
 chcp 65001 >nul
-title Paper Ingest - PDF to Feishu
+title Paper Ingest - Batch PDF to Feishu
 cd /d "%~dp0"
 
 echo ==========================================
-echo        Paper Ingest V1
+echo        Paper Ingest V1 - Batch
 echo ==========================================
 echo.
 
 if "%~1"=="" (
-  echo [ERROR] 没有收到 PDF。
-  echo 请把 PDF 文件直接拖到 load_paper.bat 上。
+  echo [ERROR] 没有收到 PDF 或文件夹。
+  echo.
+  echo 用法：
+  echo   1. 拖一篇 PDF 到 load_paper.bat
+  echo   2. 同时选中多篇 PDF，一起拖到 load_paper.bat
+  echo   3. 拖一个装有 PDF 的文件夹到 load_paper.bat
   echo.
   pause
   exit /b 1
 )
-
-echo [PDF] %~1
-echo.
 
 rem 优先使用项目虚拟环境
 if exist ".venv\Scripts\python.exe" (
@@ -49,20 +50,20 @@ if not exist ".env" (
   exit /b 1
 )
 
-echo [START] 正在启动，请不要关闭窗口...
+echo [START] 开始顺序处理。批量任务期间请不要关闭窗口...
 echo.
-%PY% -u paper_ingest.py "%~1"
+%PY% -u paper_ingest.py %*
 set "EXIT_CODE=%ERRORLEVEL%"
 
 echo.
 if "%EXIT_CODE%"=="0" (
   echo ==========================================
-  echo [DONE] 任务结束。
+  echo [DONE] 批处理结束。
   echo ==========================================
 ) else (
   echo ==========================================
-  echo [FAILED] 运行失败，错误码：%EXIT_CODE%
-  echo 请把上方最后一段报错截图发给我。
+  echo [PARTIAL/FAILED] 批处理结束，错误码：%EXIT_CODE%
+  echo 部分论文可能已经成功处理，请查看上方“批处理完成”汇总。
   echo ==========================================
 )
 echo.

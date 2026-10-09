@@ -81,8 +81,6 @@ bitable:app
 
 修改权限后记得**发布应用新版本**。
 
-> 如果你习惯用飞书 CLI 配置应用，可以按飞书官方 CLI / OpenAPI 指南完成应用创建和权限配置；本项目本身不依赖 CLI。
-
 ### 3.4 配置目标 Base 的访问权限
 
 除了开放平台里的 API 权限，还要确保这个应用本身有权访问目标多维表格。
@@ -147,6 +145,14 @@ DRY_RUN=0
 ---
 
 ## 5. 日常使用
+
+```text
+本地 PDF
+        ↓
+拖到 load_paper.bat/ 命令行运行 paper_ingest.py
+        ↓
+自动分析并写入飞书多维表格
+```
 
 ### Windows 拖拽
 
@@ -232,20 +238,4 @@ pip install -r requirements.txt
 
 ```text
 logs/latest.log
-```
-
----
-
-## 7. 推荐使用方式
-
-```text
-Scholaread 阅读论文
-        ↓
-本地 PDF
-        ↓
-拖到 load_paper.bat
-        ↓
-自动分析并写入飞书
-        ↓
-在飞书继续整理 / 精读 / 复现
 ```

@@ -58,6 +58,18 @@ class FeishuBitableClient:
             "Content-Type": "application/json; charset=utf-8",
         }
 
+    @staticmethod
+    def _raise_api_error(r: requests.Response, action: str) -> None:
+        if r.ok:
+            return
+        try:
+            detail = r.json()
+        except Exception:
+            detail = r.text[:1000]
+        raise RuntimeError(
+            f"{action}失败：HTTP {r.status_code}；飞书响应：{detail}"
+        )
+
     def get_fields(self) -> dict[str, dict[str, Any]]:
         if self._fields is not None:
             return self._fields
@@ -70,10 +82,10 @@ class FeishuBitableClient:
             if page_token:
                 params["page_token"] = page_token
             r = requests.get(url, headers=self._headers(), params=params, timeout=20)
-            r.raise_for_status()
+            self._raise_api_error(r, "读取飞书字段")
             data = r.json()
             if data.get("code", 0) != 0:
-                raise RuntimeError(f"读取飞书字段失败: {data}")
+                raise RuntimeError(f"读取飞书字段失败：{data}")
             for item in data.get("data", {}).get("items", []):
                 fields[item["field_name"]] = item
             if not data.get("data", {}).get("has_more"):
@@ -95,17 +107,18 @@ class FeishuBitableClient:
 
     def list_records(self) -> list[dict[str, Any]]:
         url = f"{BASE}/bitable/v1/apps/{self.app_token}/tables/{self.table_id}/records"
-        params = {"page_size": 500}
+        # 100 足够用于文献库分页，也更保守地兼容飞书接口参数限制。
+        params = {"page_size": 100}
         out = []
         page_token = None
         while True:
             if page_token:
                 params["page_token"] = page_token
             r = requests.get(url, headers=self._headers(), params=params, timeout=30)
-            r.raise_for_status()
+            self._raise_api_error(r, "读取飞书记录")
             data = r.json()
             if data.get("code", 0) != 0:
-                raise RuntimeError(f"读取飞书记录失败: {data}")
+                raise RuntimeError(f"读取飞书记录失败：{data}")
             out.extend(data.get("data", {}).get("items", []))
             if not data.get("data", {}).get("has_more"):
                 break
@@ -129,10 +142,10 @@ class FeishuBitableClient:
             json={"fields": fields},
             timeout=30,
         )
-        r.raise_for_status()
+        self._raise_api_error(r, "飞书写入")
         data = r.json()
         if data.get("code", 0) != 0:
-            raise RuntimeError(f"飞书写入失败: {data}")
+            raise RuntimeError(f"飞书写入失败：{data}")
         return data
 
     def update_record(self, record_id: str, fields: dict[str, Any]) -> dict[str, Any]:
@@ -144,8 +157,8 @@ class FeishuBitableClient:
             json={"fields": fields},
             timeout=30,
         )
-        r.raise_for_status()
+        self._raise_api_error(r, "飞书更新")
         data = r.json()
         if data.get("code", 0) != 0:
-            raise RuntimeError(f"飞书更新失败: {data}")
+            raise RuntimeError(f"飞书更新失败：{data}")
         return data

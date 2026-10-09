@@ -24,6 +24,7 @@ It only automates the repetitive part of literature management: extracting key i
 - Use SHA256 to avoid duplicate imports
 - Write records directly to Feishu Bitable through OpenAPI
 - Windows drag-and-drop support via `load_paper.bat`
+- Sequential batch processing for multiple PDFs or a PDF folder
 - Progress output and local error logs
 
 ---
@@ -169,11 +170,15 @@ The cached AI result will be reused, so DeepSeek is normally not called again.
 
 ## Windows Drag-and-Drop
 
-After dependencies and `.env` are configured, drag a PDF directly onto:
+After dependencies and `.env` are configured, use `load_paper.bat`.
 
-```text
-load_paper.bat
-```
+Supported inputs:
+
+- drag one PDF
+- select multiple PDFs and drag them together
+- drag one folder; all first-level `.pdf` files are processed in filename order
+
+Batch processing is **sequential**. If one paper fails, the remaining papers continue.
 
 The command window will stay open and show progress:
 
@@ -303,11 +308,25 @@ schema.py
 
 ## CLI
 
-Normal import:
+Single paper:
 
 ```bash
 python paper_ingest.py paper.pdf
 ```
+
+Multiple papers, processed sequentially:
+
+```bash
+python paper_ingest.py paper1.pdf paper2.pdf paper3.pdf
+```
+
+Whole folder, processed by filename order:
+
+```bash
+python paper_ingest.py "D:\\papers"
+```
+
+A batch summary is printed at the end. One failed paper does not stop subsequent papers.
 
 Overwrite an existing Feishu record:
 

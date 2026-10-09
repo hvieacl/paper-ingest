@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parent
 CACHE_DIR = ROOT / "cache"
 CACHE_DIR.mkdir(exist_ok=True)
 
+
 def sha256_file(path: Path) -> str:
     h = hashlib.sha256()
     with path.open("rb") as f:
@@ -23,11 +24,19 @@ def sha256_file(path: Path) -> str:
             h.update(chunk)
     return h.hexdigest()
 
+
 def load_or_analyze(pdf: Path, paper_hash: str, force_ai: bool):
     cache_path = CACHE_DIR / f"{paper_hash}.json"
+
     if cache_path.exists() and not force_ai:
-        print("✓ 命中本地 AI 缓存")
-        return json.loads(cache_path.read_text(encoding="utf-8"))
+        cache_obj = json.loads(cache_path.read_text(encoding="utf-8"))
+        if cache_obj.get("schema_version") == SCHEMA_VERSION:
+            print("✓ 命中本地 AI 缓存")
+            return cache_obj
+        print(
+            f"• 发现旧缓存版本 {cache_obj.get('schema_version', 'unknown')}，"
+            f"当前版本为 {SCHEMA_VERSION}，将重新分析"
+        )
 
     print("• 解析 PDF ...")
     pages = parse_pdf(pdf)
@@ -41,51 +50,63 @@ def load_or_analyze(pdf: Path, paper_hash: str, force_ai: bool):
     analysis = analyze_paper(text)
     data = analysis.model_dump()
 
+    cache_obj = {
+        "schema_version": SCHEMA_VERSION,
+        "paper_hash": paper_hash,
+        "source_file": pdf.name,
+        "analysis": data,
+    }
     cache_path.write_text(
-        json.dumps(
-            {
-                "schema_version": SCHEMA_VERSION,
-                "paper_hash": paper_hash,
-                "source_file": pdf.name,
-                "analysis": data,
-            },
-            ensure_ascii=False,
-            indent=2,
-        ),
+        json.dumps(cache_obj, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
     print("✓ DeepSeek 分析完成并缓存")
-    return json.loads(cache_path.read_text(encoding="utf-8"))
+    return cache_obj
+
 
 def feishu_payload(cache_obj: dict, pdf: Path) -> dict:
     a = cache_obj["analysis"]
     payload = {}
+
     for feishu_name, json_name in FEISHU_FIELD_MAP.items():
         v = a.get(json_name)
         if isinstance(v, list):
-            # 多选字段保留 list；普通长文本字段合并为换行文本
-            if feishu_name in {"Task", "Domain", "场景表示", "Method"}:
+            # 四维分类中 Task / Domain / Method 为多选；其余列表写成长文本。
+            if feishu_name in {"Task", "Domain", "Method"}:
                 payload[feishu_name] = v
             else:
-                payload[feishu_name] = "\n".join(f"{i+1}. {x}" for i, x in enumerate(v))
+                payload[feishu_name] = "\n".join(
+                    f"{i+1}. {x}" for i, x in enumerate(v)
+                )
         elif v not in (None, ""):
             payload[feishu_name] = v
 
-    payload.update({
-        "PaperHash": cache_obj["paper_hash"],
-        "AI解析状态": "已解析",
-        "解析版本": cache_obj.get("schema_version", SCHEMA_VERSION),
-        "原文件名": pdf.name,
-    })
+    payload.update(
+        {
+            "PaperHash": cache_obj["paper_hash"],
+            "AI解析状态": "已解析",
+            "解析版本": cache_obj.get("schema_version", SCHEMA_VERSION),
+            "原文件名": pdf.name,
+        }
+    )
     return payload
+
 
 def main():
     load_dotenv(ROOT / ".env")
 
     parser = argparse.ArgumentParser(description="PDF → DeepSeek → 飞书多维表格")
     parser.add_argument("pdf", help="论文 PDF 路径")
-    parser.add_argument("--force-ai", action="store_true", help="忽略本地缓存，重新调用 DeepSeek")
-    parser.add_argument("--update", action="store_true", help="如果飞书已存在相同 PaperHash，则覆盖更新")
+    parser.add_argument(
+        "--force-ai",
+        action="store_true",
+        help="忽略本地缓存，重新调用 DeepSeek",
+    )
+    parser.add_argument(
+        "--update",
+        action="store_true",
+        help="如果飞书已存在相同 PaperHash，则覆盖更新",
+    )
     args = parser.parse_args()
 
     pdf = Path(args.pdf).expanduser().resolve()
@@ -105,8 +126,9 @@ def main():
     print("简称：", a.get("short_name", ""))
     print("Task：", "；".join(a.get("task", [])))
     print("Domain：", "；".join(a.get("domain", [])))
-    print("场景表示：", "；".join(a.get("representation", [])))
     print("Method：", "；".join(a.get("method", [])))
+    print("Type：", a.get("type", ""))
+    print("Role：", a.get("role", ""))
     if a.get("suggested_new_tags"):
         print("建议新增标签：", "；".join(a["suggested_new_tags"]))
 
@@ -132,6 +154,7 @@ def main():
         result = client.create_record(payload)
         record = result.get("data", {}).get("record", {})
         print("✓ 飞书写入完成：", record.get("record_id", "(record_id 未返回)"))
+
 
 if __name__ == "__main__":
     main()

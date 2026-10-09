@@ -1,492 +1,231 @@
 # paper-ingest
 
-A lightweight local workflow for turning research PDFs into structured records in Feishu Bitable.
+把本地论文 PDF 自动整理后写入飞书多维表格。
 
-> **PDF → DeepSeek → structured JSON → Feishu Bitable**
+> **PDF → DeepSeek 分析 → 自动分类 → 飞书入库**
 
-This project is intentionally small. It does not replace Scholaread or build another paper reader.  
-It only automates the repetitive part of literature management: extracting key information, classifying papers, and writing the result into Feishu.
+支持单篇 PDF、多篇 PDF 和整个文件夹批处理。
 
----
+## 1. 安装
 
-## Features
-
-- Parse research PDFs with PyMuPDF
-- Analyze papers with DeepSeek in a single structured call
-- Classify papers with a fixed taxonomy:
-  - **Task**
-  - **Domain**
-  - **Method**
-  - **Type**
-- Keep **Role** as an auxiliary literature tag
-- Validate model output with Pydantic
-- Cache AI results locally
-- Use SHA256 to avoid duplicate imports
-- Write records directly to Feishu Bitable through OpenAPI
-- Windows drag-and-drop support via `load_paper.bat`
-- Sequential batch processing for multiple PDFs or a PDF folder
-- Progress output and local error logs
-
----
-
-## Workflow
-
-```text
-PDF
- ↓
-PyMuPDF
- ↓
-DeepSeek
- ↓
-structured JSON
- ↓
-taxonomy validation
- ↓
-local cache
- ↓
-Feishu Bitable
-```
-
-Recommended division of labor:
-
-- **Scholaread**: reading, highlights, paper Q&A
-- **paper-ingest**: automated structuring and import
-- **Feishu Bitable**: literature database
-- **Feishu Docs**: deep-reading notes and reproduction records
-
----
-
-## Requirements
-
-- Python 3.10+
-- DeepSeek API key
-- Feishu self-built app with Bitable read/write permissions
-
-Install Python dependencies:
-
-```bash
-pip install -r requirements.txt
-```
-
-A virtual environment is recommended:
-
-```bash
-python -m venv .venv
-```
-
-Windows:
-
-```bash
-.venv\Scripts\activate
-pip install -r requirements.txt
-```
-
----
-
-## Quick Start
-
-### 1. Clone
+建议使用 Python 3.10+。
 
 ```bash
 git clone https://github.com/hvieacl/paper-ingest.git
 cd paper-ingest
-```
 
-### 2. Install dependencies
-
-```bash
+python -m venv .venv
+.venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 3. Create local config
+## 2. 配置
 
-Copy the template:
+复制配置文件：
 
 ```bash
 copy .env.example .env
 ```
 
-Then edit `.env`:
+编辑 `.env`：
 
 ```env
-DEEPSEEK_API_KEY=your_key
+DEEPSEEK_API_KEY=你的_API_Key
 DEEPSEEK_BASE_URL=https://api.deepseek.com
-DEEPSEEK_MODEL=your_model
+DEEPSEEK_MODEL=deepseek-flash
 
 FEISHU_APP_ID=cli_xxx
-FEISHU_APP_SECRET=your_secret
-FEISHU_APP_TOKEN=base_xxx
-FEISHU_TABLE_ID=tbl_xxx
+FEISHU_APP_SECRET=你的_App_Secret
+FEISHU_APP_TOKEN=你的_App_Token
+FEISHU_TABLE_ID=你的_Table_ID
 
-MAX_ANALYSIS_CHARS=120000
-
-# 1 = preview only
-# 0 = write to Feishu
+# 1 = 只预览，不写入飞书
+# 0 = 正式写入飞书
 DRY_RUN=1
 ```
 
-Do not commit `.env`. It is already ignored by `.gitignore`.
-
-### 4. First test
-
-Keep:
-
-```env
-DRY_RUN=1
-```
-
-Then run:
-
-```bash
-python paper_ingest.py "D:\papers\paper.pdf"
-```
-
-The program will:
-
-1. parse the PDF
-2. call DeepSeek
-3. validate the structured result
-4. cache it locally
-5. print a preview
-6. stop before writing to Feishu
-
-### 5. Enable Feishu write
-
-After confirming the preview, change:
-
-```env
-DRY_RUN=0
-```
-
-Run the same PDF again:
-
-```bash
-python paper_ingest.py "D:\papers\paper.pdf"
-```
-
-The cached AI result will be reused, so DeepSeek is normally not called again.
-
----
-
-## Windows Drag-and-Drop
-
-After dependencies and `.env` are configured, use `load_paper.bat`.
-
-Supported inputs:
-
-- drag one PDF
-- select multiple PDFs and drag them together
-- drag one folder; all first-level `.pdf` files are processed in filename order
-
-Batch processing is **sequential**. If one paper fails, the remaining papers continue.
-
-The command window will stay open and show progress:
-
-```text
-[0/5] configuration
-[1/5] read PDF
-[2/5] parse/cache
-[3/5] DeepSeek analysis
-[4/5] preview
-[5/5] Feishu write
-```
-
-If something fails, the latest log is written to:
-
-```text
-logs/latest.log
-```
-
----
-
-## Feishu Bitable Schema
-
-The target table should contain these fields.
-
-### Auto-filled fields
-
-| Field | Type |
-|---|---|
-| 标题 | Text |
-| 简称 | Text |
-| 年份 | Text |
-| 作者 | Long text |
-| 会议 / 期刊 | Text |
-| DOI / arXiv | Text |
-| 研究问题 | Long text |
-| 核心思想 | Long text |
-| 技术路线 | Long text |
-| 关键创新 | Long text |
-| 主要结果 / 结论 | Long text |
-| 不足之处 | Long text |
-| 待解决疑点 | Long text |
-| 感悟启发 | Long text |
-| Task | Multi-select |
-| Domain | Multi-select |
-| Method | Multi-select |
-| Type | Single-select |
-| Role | Single-select |
-
-### Technical fields
-
-| Field | Type | Purpose |
-|---|---|---|
-| PaperHash | Text | Duplicate detection |
-| AI解析状态 | Text / Single-select | Parse status |
-| 解析版本 | Text | Schema version |
-| 原文件名 | Text | Original PDF filename |
-
-Field names must match exactly.
-
----
-
-## Taxonomy
-
-The main classification system is:
-
-### Task
-What problem the paper solves.
-
-Examples:
-
-- 静态场景重建
-- 动态场景 / 4D 重建
-- 新视角合成
-- 世界状态预测
-- 规划与决策
-
-### Domain
-Where the method is applied.
-
-Examples:
-
-- 自动驾驶 / 城市道路
-- 通用室外场景
-- 室内场景
-- 机器人 / 具身环境
-
-### Method
-What representation, modeling paradigm, or core technique is used.
-
-Examples:
-
-- 3DGS
-- NeRF / 神经辐射场
-- SLAM / BA
-- Diffusion / 视频扩散
-- Transformer
-- JEPA / 表征预测
-- World Model / Latent Dynamics
-- VLM / VLA
-
-### Type
-What kind of resource it is.
-
-Examples:
-
-- 研究论文
-- 综述 / 系统综述
-- 技术报告
-- 数据集 / 基准
-
-### Role
-Auxiliary literature role.
-
-Examples:
-
-- 基础 / 奠基工作
-- 方法论文
-- 基准 / 数据集工作
-
-All taxonomy values are maintained in:
-
-```text
-schema.py
-```
-
----
-
-## CLI
-
-Single paper:
-
-```bash
-python paper_ingest.py paper.pdf
-```
-
-Multiple papers, processed sequentially:
-
-```bash
-python paper_ingest.py paper1.pdf paper2.pdf paper3.pdf
-```
-
-Whole folder, processed by filename order:
-
-```bash
-python paper_ingest.py "D:\\papers"
-```
-
-A batch summary is printed at the end. One failed paper does not stop subsequent papers.
-
-Overwrite an existing Feishu record:
-
-```bash
-python paper_ingest.py paper.pdf --update
-```
-
-Force a new DeepSeek analysis:
-
-```bash
-python paper_ingest.py paper.pdf --force-ai --update
-```
-
----
-
-## Cache
-
-AI results are saved under:
-
-```text
-cache/<sha256>.json
-```
-
-This prevents unnecessary repeated API calls.
-
-If the schema version changes, old cache entries are automatically treated as stale and regenerated.
-
----
-
-## Feishu IDs
-
-A Feishu Bitable URL usually looks like:
+飞书多维表格链接一般类似：
 
 ```text
 https://xxx.feishu.cn/base/APP_TOKEN?table=TABLE_ID&view=VIEW_ID
 ```
 
-Use:
+对应：
 
 ```env
 FEISHU_APP_TOKEN=APP_TOKEN
 FEISHU_TABLE_ID=TABLE_ID
 ```
 
-The `view` value is not required.
+`view=` 后面的内容不需要填写。
 
----
+## 3. 飞书权限
 
-## Security
+本项目使用应用身份调用飞书 API。
 
-Never commit:
+请确认飞书自建应用具备以下能力：
 
-- `.env`
-- DeepSeek API keys
-- Feishu App Secret
-- local cache files
+- 读取多维表格记录
+- 读取字段
+- 新增记录
+- 更新记录
 
-The repository already ignores:
+如果出现 `403 Forbidden`，优先检查：
 
-```gitignore
-.env
-.venv/
-__pycache__/
-*.py[cod]
-cache/*.json
+- 是否开的是**应用身份权限**
+- 权限修改后是否已发布应用新版本
+- 目标 Base 是否允许该应用访问
+- Base 高级权限是否允许该应用写入
+
+## 4. 第一次测试
+
+先保持：
+
+```env
+DRY_RUN=1
 ```
 
-You can verify:
+运行：
 
 ```bash
-git check-ignore -v .env
+python paper_ingest.py "D:\papers\paper.pdf"
 ```
 
----
+确认终端里的标题、分类和摘要结果正常后，把：
 
-## Project Structure
+```env
+DRY_RUN=0
+```
+
+再运行一次即可写入飞书。
+
+## 5. 日常使用
+
+### Windows 拖拽
+
+直接把内容拖到：
 
 ```text
-paper-ingest/
-├── paper_ingest.py      # main entry
-├── pdf_parser.py        # PDF text extraction
-├── analyzer.py          # DeepSeek structured analysis
-├── schema.py            # taxonomy + output schema
-├── feishu.py            # Feishu Bitable client
-├── load_paper.bat       # Windows drag-and-drop launcher
-├── requirements.txt
-├── .env.example
-├── cache/
-└── logs/
+load_paper.bat
 ```
 
----
+支持：
 
-## Limitations
+- 一篇 PDF
+- 多篇 PDF 一起拖入
+- 一个包含 PDF 的文件夹
 
-V1 is designed for fast literature indexing, not full paper understanding.
+文件夹会按文件名顺序处理第一层 PDF。
 
-It does not currently provide:
+### 命令行
 
-- OCR for scanned PDFs
-- figure-level visual understanding
-- detailed table extraction
-- formula reasoning
-- RAG / vector search
-- Scholaread synchronization
-- automatic arXiv crawling
+单篇：
 
-For deep reading, figures, formulas, and reproduction work, continue using Scholaread / ChatGPT / Feishu Docs.
+```bash
+python paper_ingest.py paper.pdf
+```
 
----
+多篇：
 
-## Troubleshooting
+```bash
+python paper_ingest.py paper1.pdf paper2.pdf paper3.pdf
+```
+
+整个文件夹：
+
+```bash
+python paper_ingest.py "D:\papers"
+```
+
+更新已有记录：
+
+```bash
+python paper_ingest.py paper.pdf --update
+```
+
+强制重新调用 DeepSeek：
+
+```bash
+python paper_ingest.py paper.pdf --force-ai --update
+```
+
+## 6. 飞书表字段
+
+请在目标多维表格中建立以下字段。
+
+### 自动填充
+
+| 字段 | 类型 |
+|---|---|
+| 标题 | 文本 |
+| 简称 | 文本 |
+| 年份 | 文本 |
+| 作者 | 多行文本 |
+| 会议 / 期刊 | 文本 |
+| DOI / arXiv | 文本 |
+| 研究问题 | 多行文本 |
+| 核心思想 | 多行文本 |
+| 技术路线 | 多行文本 |
+| 关键创新 | 多行文本 |
+| 主要结果 / 结论 | 多行文本 |
+| 不足之处 | 多行文本 |
+| 待解决疑点 | 多行文本 |
+| 感悟启发 | 多行文本 |
+| Task | 多选 |
+| Domain | 多选 |
+| Method | 多选 |
+| Type | 单选 |
+| Role | 单选 |
+
+### 技术字段
+
+| 字段 | 类型 |
+|---|---|
+| PaperHash | 文本 |
+| AI解析状态 | 文本 / 单选 |
+| 解析版本 | 文本 |
+| 原文件名 | 文本 |
+
+字段名需要与上表保持一致。
+
+## 7. 常见问题
 
 ### `ModuleNotFoundError`
 
-Dependencies are not installed.
-
-Run:
+重新安装依赖：
 
 ```bash
 pip install -r requirements.txt
 ```
 
-If using the virtual environment:
+### DeepSeek 偶尔返回非法 JSON
 
-```bash
-.venv\Scripts\activate
-pip install -r requirements.txt
+程序会自动重试。已经成功解析过的论文会优先使用本地缓存。
+
+### PDF 出现 MuPDF annotation 警告
+
+只要后面仍然正常显示页数和提取字符数，一般可以忽略。
+
+### 飞书写入失败
+
+查看：
+
+```text
+logs/latest.log
 ```
 
-### Feishu 403
+并优先检查飞书应用权限和 Base 写入权限。
 
-Check:
+## 8. 推荐使用方式
 
-- app permissions
-- whether permissions have been published
-- whether the app can access the target Bitable
-- `FEISHU_APP_ID`
-- `FEISHU_APP_SECRET`
-- `FEISHU_APP_TOKEN`
-- `FEISHU_TABLE_ID`
-
-### PDF text is too short
-
-The PDF may be scanned or have a broken text layer. V1 does not run OCR.
-
-### DeepSeek returns empty output
-
-Check:
-
-- API key
-- base URL
-- model name
-
----
-
-## Design Principle
-
-Keep the workflow small:
-
-> **Scholaread for reading, paper-ingest for structuring, Feishu for accumulation.**
-
-The goal is to reduce literature-management overhead, not create another system to maintain.
+```text
+Scholaread 阅读论文
+        ↓
+本地 PDF
+        ↓
+拖到 load_paper.bat
+        ↓
+自动分析并写入飞书
+        ↓
+在飞书继续整理 / 精读 / 复现
+```

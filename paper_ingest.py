@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 
 from pdf_parser import parse_pdf, select_analysis_text
 from analyzer import analyze_paper
-from feishu import FeishuBitableClient
+from feishu import FeishuBitableClient, FeishuAPIError
 from schema import FEISHU_FIELD_MAP, SCHEMA_VERSION
 
 ROOT = Path(__file__).resolve().parent
@@ -289,6 +289,16 @@ def main():
                 existing_by_hash=existing_by_hash,
             )
             results.append((status, title, pdf.name))
+        except FeishuAPIError as exc:
+            failed.append((pdf.name, str(exc)))
+            print()
+            print(f"    [FAILED] {pdf.name}")
+            print(f"             {type(exc).__name__}: {exc}")
+            if exc.status_code in {401, 403}:
+                print("             → 飞书认证/权限错误属于系统级故障，为避免继续消耗 DeepSeek API，立即终止批处理。")
+                raise
+            traceback.print_exc()
+            print("             → 继续处理下一篇")
         except Exception as exc:
             failed.append((pdf.name, str(exc)))
             print()

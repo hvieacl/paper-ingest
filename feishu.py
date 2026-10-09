@@ -6,6 +6,15 @@ import requests
 
 BASE = "https://open.feishu.cn/open-apis"
 
+class FeishuAPIError(RuntimeError):
+    def __init__(self, action: str, status_code: int, detail):
+        self.action = action
+        self.status_code = status_code
+        self.detail = detail
+        super().__init__(
+            f"{action}失败：HTTP {status_code}；飞书响应：{detail}"
+        )
+
 class FeishuBitableClient:
     def __init__(self):
         self.app_id = os.environ["FEISHU_APP_ID"]
@@ -66,9 +75,7 @@ class FeishuBitableClient:
             detail = r.json()
         except Exception:
             detail = r.text[:1000]
-        raise RuntimeError(
-            f"{action}失败：HTTP {r.status_code}；飞书响应：{detail}"
-        )
+        raise FeishuAPIError(action, r.status_code, detail)
 
     def get_fields(self) -> dict[str, dict[str, Any]]:
         if self._fields is not None:

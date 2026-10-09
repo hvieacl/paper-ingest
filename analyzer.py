@@ -2,8 +2,11 @@ from __future__ import annotations
 import json
 import os
 import time
+from pathlib import Path
+
 from openai import OpenAI
 from pydantic import ValidationError
+
 from schema import (
     PaperAnalysis,
     TASK_TAGS,
@@ -13,78 +16,22 @@ from schema import (
     ROLE_TAGS,
 )
 
-SYSTEM_PROMPT = """\
-你是一名计算机视觉、自动驾驶、三维重建与世界模型方向的科研论文分析助手。
-你的任务不是写长篇读后感，而是把论文转换成可直接写入科研数据库的结构化 JSON。
+ROOT = Path(__file__).resolve().parent
+PROMPT_PATH = ROOT / "prompts" / "paper_analysis_system.txt"
 
-研究主线：
-场景表示与重建 → 动态场景与时空预测 → 生成式世界与场景生成 → 自动驾驶仿真与闭环 → 世界模型与多模态智能。
 
-分类体系：
-- Task：论文具体在解决什么任务。
-- Domain：论文应用在哪类场景或领域。
-- Method：论文采用的场景表示、建模范式和核心技术。3DGS、NeRF、Mesh、Occupancy、Latent 等表示方式统一归入 Method，不单独建立 Representation。
-- Type：论文或资料本身是什么类型。
-- Role：文献在个人知识体系中的角色，只是辅助分类，不属于四维主分类。
+def load_system_prompt() -> str:
+    if not PROMPT_PATH.exists():
+        raise RuntimeError(f"找不到提示词文件：{PROMPT_PATH}")
 
-原则：
-1. 严格依据论文正文；论文没有明确给出的信息填空字符串或空数组，不要编造。
-2. 研究问题、核心思想、技术路线、关键创新必须互相区分，避免换句话重复。
-3. 技术路线重点写清“输入 → 关键模块/处理 → 中间表示 → 输出 → 目的”，优先保留技术逻辑而不是背景叙述。
-4. 关键创新只保留真正有区分度的 2-4 条。
-5. main_results 只写实验真正支持的主要结论，不要泛化。
-6. questions 是“读者精读时最值得继续解决的技术疑点”，2-5 条即可。
-7. inspiration 要结合上述研究主线，指出这篇论文为什么值得我记住；不要写“具有参考价值”这类空话。
-8. Task / Domain / Method / Type 必须优先从给定词表选择；不要发明同义标签。
-9. Method 可以多选，但只选择对理解论文有检索价值的核心方法，避免把论文中出现过的每个技术名词都打成标签。
-10. 如果确实缺少必要标签，只放到 suggested_new_tags，不要塞进正式标签。
-11. 输出必须是合法 JSON，不要 Markdown，不要代码围栏。
-
-允许的 Task：
-{task_tags}
-
-允许的 Domain：
-{domain_tags}
-
-允许的 Method：
-{method_tags}
-
-允许的 Type：
-{type_tags}
-
-允许的 Role：
-{role_tags}
-
-JSON 必须包含以下键：
-{{
-  "title": "",
-  "short_name": "",
-  "year": "",
-  "authors": "",
-  "venue": "",
-  "arxiv_or_doi": "",
-  "research_problem": "",
-  "core_idea": "",
-  "pipeline": "",
-  "key_innovations": [],
-  "main_results": "",
-  "limitations": "",
-  "questions": [],
-  "inspiration": "",
-  "task": [],
-  "domain": [],
-  "method": [],
-  "type": "研究论文",
-  "role": "方法论文",
-  "suggested_new_tags": []
-}}
-""".format(
-    task_tags="；".join(TASK_TAGS),
-    domain_tags="；".join(DOMAIN_TAGS),
-    method_tags="；".join(METHOD_TAGS),
-    type_tags="；".join(TYPE_TAGS),
-    role_tags="；".join(ROLE_TAGS),
-)
+    template = PROMPT_PATH.read_text(encoding="utf-8")
+    return template.format(
+        task_tags="；".join(TASK_TAGS),
+        domain_tags="；".join(DOMAIN_TAGS),
+        method_tags="；".join(METHOD_TAGS),
+        type_tags="；".join(TYPE_TAGS),
+        role_tags="；".join(ROLE_TAGS),
+    )
 
 
 def analyze_paper(text: str) -> PaperAnalysis:
@@ -95,6 +42,7 @@ def analyze_paper(text: str) -> PaperAnalysis:
     max_retries = int(os.getenv("DEEPSEEK_MAX_RETRIES", "2"))
 
     client = OpenAI(api_key=api_key, base_url=base_url)
+    system_prompt = load_system_prompt()
 
     last_error = None
 
@@ -109,7 +57,7 @@ def analyze_paper(text: str) -> PaperAnalysis:
         resp = client.chat.completions.create(
             model=model,
             messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "system", "content": system_prompt},
                 {
                     "role": "user",
                     "content": "请根据以下论文正文完成结构化分析，并仅输出 JSON：\n\n" + text,
@@ -134,7 +82,6 @@ def analyze_paper(text: str) -> PaperAnalysis:
         except (json.JSONDecodeError, ValidationError) as exc:
             last_error = exc
 
-            # 如果是因为输出长度被截断，下一次给更稳定的温度重试。
             if finish_reason == "length":
                 print(
                     f"          ! DeepSeek 输出因长度被截断 "

@@ -3,8 +3,12 @@ import json
 import os
 from openai import OpenAI
 from schema import (
-    PaperAnalysis, TASK_TAGS, DOMAIN_TAGS, REPRESENTATION_TAGS, METHOD_TAGS,
-    RESOURCE_TYPES, PAPER_ROLES
+    PaperAnalysis,
+    TASK_TAGS,
+    DOMAIN_TAGS,
+    METHOD_TAGS,
+    TYPE_TAGS,
+    ROLE_TAGS,
 )
 
 SYSTEM_PROMPT = """\
@@ -14,6 +18,13 @@ SYSTEM_PROMPT = """\
 研究主线：
 场景表示与重建 → 动态场景与时空预测 → 生成式世界与场景生成 → 自动驾驶仿真与闭环 → 世界模型与多模态智能。
 
+分类体系：
+- Task：论文具体在解决什么任务。
+- Domain：论文应用在哪类场景或领域。
+- Method：论文采用的场景表示、建模范式和核心技术。3DGS、NeRF、Mesh、Occupancy、Latent 等表示方式统一归入 Method，不单独建立 Representation。
+- Type：论文或资料本身是什么类型。
+- Role：文献在个人知识体系中的角色，只是辅助分类，不属于四维主分类。
+
 原则：
 1. 严格依据论文正文；论文没有明确给出的信息填空字符串或空数组，不要编造。
 2. 研究问题、核心思想、技术路线、关键创新必须互相区分，避免换句话重复。
@@ -22,9 +33,10 @@ SYSTEM_PROMPT = """\
 5. main_results 只写实验真正支持的主要结论，不要泛化。
 6. questions 是“读者精读时最值得继续解决的技术疑点”，2-5 条即可。
 7. inspiration 要结合上述研究主线，指出这篇论文为什么值得我记住；不要写“具有参考价值”这类空话。
-8. Task / Domain / Representation / Method 必须优先从给定词表选择；不要发明同义标签。
-9. 如果确实缺少必要标签，只放到 suggested_new_tags，不要塞进正式标签。
-10. 输出必须是合法 JSON，不要 Markdown，不要代码围栏。
+8. Task / Domain / Method / Type 必须优先从给定词表选择；不要发明同义标签。
+9. Method 可以多选，但只选择对理解论文有检索价值的核心方法，避免把论文中出现过的每个技术名词都打成标签。
+10. 如果确实缺少必要标签，只放到 suggested_new_tags，不要塞进正式标签。
+11. 输出必须是合法 JSON，不要 Markdown，不要代码围栏。
 
 允许的 Task：
 {task_tags}
@@ -32,17 +44,14 @@ SYSTEM_PROMPT = """\
 允许的 Domain：
 {domain_tags}
 
-允许的 Representation：
-{representation_tags}
-
 允许的 Method：
 {method_tags}
 
-允许的资源类型：
-{resource_types}
+允许的 Type：
+{type_tags}
 
-允许的文献角色：
-{paper_roles}
+允许的 Role：
+{role_tags}
 
 JSON 必须包含以下键：
 {{
@@ -62,20 +71,19 @@ JSON 必须包含以下键：
   "inspiration": "",
   "task": [],
   "domain": [],
-  "representation": [],
   "method": [],
-  "resource_type": "研究论文",
-  "paper_role": "方法论文",
+  "type": "研究论文",
+  "role": "方法论文",
   "suggested_new_tags": []
 }}
 """.format(
     task_tags="；".join(TASK_TAGS),
     domain_tags="；".join(DOMAIN_TAGS),
-    representation_tags="；".join(REPRESENTATION_TAGS),
     method_tags="；".join(METHOD_TAGS),
-    resource_types="；".join(RESOURCE_TYPES),
-    paper_roles="；".join(PAPER_ROLES),
+    type_tags="；".join(TYPE_TAGS),
+    role_tags="；".join(ROLE_TAGS),
 )
+
 
 def analyze_paper(text: str) -> PaperAnalysis:
     api_key = os.environ["DEEPSEEK_API_KEY"]

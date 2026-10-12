@@ -7,6 +7,7 @@ from pathlib import Path
 from openai import OpenAI
 from pydantic import ValidationError
 
+from deepseek_accounting import record_usage
 from schema import (
     PaperAnalysis,
     TASK_TAGS,
@@ -68,6 +69,7 @@ def analyze_paper(text: str) -> PaperAnalysis:
             max_tokens=max_tokens,
         )
 
+        record_usage(resp.usage)
         choice = resp.choices[0]
         content = choice.message.content or ""
         finish_reason = getattr(choice, "finish_reason", None)

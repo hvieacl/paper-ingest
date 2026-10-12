@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import List
 from pydantic import BaseModel, Field, field_validator
 
-SCHEMA_VERSION = "wm-v1.1"
+SCHEMA_VERSION = "wm-v1.2"
 
 TASK_TAGS = [
     "静态场景重建",

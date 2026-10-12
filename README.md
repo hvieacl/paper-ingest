@@ -154,9 +154,38 @@ DRY_RUN=0
 自动分析并写入飞书多维表格
 ```
 
+### Windows 右键菜单（推荐）
+
+如果不想每次跨窗口拖拽，可以直接安装资源管理器右键菜单。
+
+双击运行：
+
+```text
+install_context_menu.bat
+```
+
+安装后可以直接：
+
+- 右键 PDF → **导入到 paper-ingest**
+- 右键文件夹 → **使用 paper-ingest 处理此文件夹**
+
+脚本会自动使用当前仓库里的 `load_paper.bat`，不需要手动写死项目路径。
+
+Windows 11 如果没有直接显示该菜单，请点击：
+
+```text
+显示更多选项
+```
+
+如需移除右键菜单，双击：
+
+```text
+uninstall_context_menu.bat
+```
+
 ### Windows 拖拽
 
-直接把内容拖到：
+也可以继续把内容拖到：
 
 ```text
 load_paper.bat

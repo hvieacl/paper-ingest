@@ -164,12 +164,19 @@ DRY_RUN=0
 install_context_menu.bat
 ```
 
-安装后可以直接：
+安装后，PDF 右键会提供三个入口：
 
-- 右键 PDF → **导入到 paper-ingest**
-- 右键文件夹 → **使用 paper-ingest 处理此文件夹**
+- **导入到 paper-ingest**：正常导入；有缓存时复用缓存，飞书已有相同 PaperHash 时默认跳过
+- **使用缓存覆盖飞书**：复用现有 AI 缓存，不重新调用 DeepSeek，只覆盖飞书中的同 PaperHash 记录
+- **重新分析并覆盖飞书**：忽略现有缓存，重新调用 DeepSeek，覆盖本地 cache，并覆盖飞书中的同 PaperHash 记录
 
-脚本会自动使用当前仓库里的 `load_paper.bat`，不需要手动写死项目路径。
+文件夹右键仅提供：
+
+- **使用 paper-ingest 处理此文件夹**
+
+为避免一次误操作重跑整个文件夹，文件夹菜单不会提供“重新分析并覆盖”。
+
+脚本会自动使用当前仓库路径，不需要手动写死项目目录。
 
 Windows 11 如果没有直接显示该菜单，请点击：
 
@@ -198,6 +205,53 @@ load_paper.bat
 - 一个包含 PDF 的文件夹
 
 文件夹会按文件名顺序处理第一层 PDF。
+
+
+### 重新分析 / 覆盖已有论文
+
+当论文已经入库，但你修改了 Prompt、输出语言或分析规则时，不需要手动打开命令行。
+
+右键单篇 PDF：
+
+```text
+重新分析并覆盖飞书
+```
+
+它等价于：
+
+```bash
+python paper_ingest.py paper.pdf --force-ai --update
+```
+
+处理逻辑：
+
+```text
+同一 PDF
+  ↓
+PaperHash 不变
+  ↓
+忽略旧 AI cache
+  ↓
+重新调用 DeepSeek
+  ↓
+覆盖本地 cache
+  ↓
+更新飞书中相同 PaperHash 的原记录
+```
+
+不会新增一条重复论文，但会产生新的 DeepSeek API 消耗。
+
+如果只想把已有缓存重新写进飞书，而不重新调用 AI，使用：
+
+```text
+使用缓存覆盖飞书
+```
+
+它等价于：
+
+```bash
+python paper_ingest.py paper.pdf --update
+```
 
 ### 命令行
 

@@ -11,6 +11,12 @@
 - Type：论文或资料本身是什么类型。
 - Role：文献在个人知识体系中的角色，只是辅助分类，不属于四维主分类。
 
+输出语言：
+{language_instruction}
+- title 保留论文官方原标题，不要翻译。
+- short_name、作者姓名、会议/期刊名、DOI/arXiv、模型名、数据集名、指标名、算法名等专有名词可保留英文。
+- research_problem、core_idea、pipeline、key_innovations、main_results、limitations、questions、inspiration 等解释性内容必须遵守上述输出语言要求；不要因为原论文是英文就整段照搬英文。
+
 原则：
 1. 严格依据论文正文；论文没有明确给出的信息填空字符串或空数组，不要编造。
 2. 研究问题、核心思想、技术路线、关键创新必须互相区分，避免换句话重复。

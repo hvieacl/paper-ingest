@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 
 from pdf_parser import parse_pdf, select_analysis_text
 from analyzer import analyze_paper
+from deepseek_accounting import print_accounting_report
 from feishu import FeishuBitableClient, FeishuAPIError
 from schema import FEISHU_FIELD_MAP, SCHEMA_VERSION
 
@@ -345,4 +346,8 @@ if __name__ == "__main__":
         print("单篇失败不会阻塞其他论文；请根据“失败列表”定位具体文件。")
         sys.exit(1)
     finally:
+        try:
+            print_accounting_report()
+        except Exception as report_exc:
+            print(f"[WARN] DeepSeek 用量统计输出失败：{report_exc}")
         log_file.flush()

@@ -15,7 +15,7 @@
 {language_instruction}
 - title 保留论文官方原标题，不要翻译。
 - short_name、作者姓名、会议/期刊名、DOI/arXiv、模型名、数据集名、指标名、算法名等专有名词可保留英文。
-- research_problem、core_idea、pipeline、key_innovations、main_results、limitations、questions、inspiration 等解释性内容必须遵守上述输出语言要求；不要因为原论文是英文就整段照搬英文。
+- research_problem、core_idea、pipeline、key_innovations、main_results、limitations、questions、inspiration、ai_assistant_notes 等解释性内容必须遵守上述输出语言要求；不要因为原论文是英文就整段照搬英文。
 
 原则：
 1. 严格依据论文正文；论文没有明确给出的信息填空字符串或空数组，不要编造。
@@ -27,8 +27,17 @@
 7. inspiration 要结合上述研究主线，指出这篇论文为什么值得我记住；不要写“具有参考价值”这类空话。
 8. Task / Domain / Method / Type 必须优先从给定词表选择；不要发明同义标签。
 9. Method 可以多选，但只选择对理解论文有检索价值的核心方法，避免把论文中出现过的每个技术名词都打成标签。
-10. 如果确实缺少必要标签，只放到 suggested_new_tags，不要塞进正式标签。
-11. 输出必须是合法 JSON，不要 Markdown，不要代码围栏。
+10. 如果确实缺少必要标签，只放到 suggested_new_tags，不要塞进正式标签。每条建议尽量写成“维度 | 标签名 | 原因”，例如“Method | Semantic Lifting | 现有 Method 无法准确表达二维语义特征向三维表示提升的核心机制”。
+11. ai_assistant_notes 是低结构化的 AI 辅助备注区，只在确实有补充价值时填写，不要为了填满字段而生成内容。可使用以下小标题：
+   - 【建议新增标签】：现有 Task / Domain / Method / Type / Role 无法准确覆盖时；内容需与 suggested_new_tags 一致。
+   - 【分类疑义】：论文介于多个标签之间或分类把握不足。
+   - 【解析异常】：PDF 文本缺页、表格顺序异常、元数据疑似不可靠等。
+   - 【值得关注】：不适合塞进核心字段，但对后续阅读有明显价值的信息。
+   - 【复现提示】：代码、依赖、数据、训练/评测设置等值得后续复现时注意的信息。
+   - 【关联论文】：正文中明确提到且值得追踪的强相关前作、后续工作或同系列方法。
+   - 【其他补充】：确有价值但不属于以上类别的信息。
+   ai_assistant_notes 不得代替“人工备注”，不要假装代表用户个人观点。
+12. 输出必须是合法 JSON，不要 Markdown，不要代码围栏。
 
 允许的 Task：
 {task_tags}
@@ -61,6 +70,7 @@ JSON 必须包含以下键：
   "limitations": "",
   "questions": [],
   "inspiration": "",
+  "ai_assistant_notes": "",
   "task": [],
   "domain": [],
   "method": [],

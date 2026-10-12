@@ -107,6 +107,7 @@ class PaperAnalysis(BaseModel):
     limitations: str = ""
     questions: List[str] = Field(default_factory=list)
     inspiration: str = ""
+    ai_assistant_notes: str = ""
 
     # 四维主分类：Task / Domain / Method / Type
     task: List[str] = Field(default_factory=list)
@@ -162,6 +163,7 @@ FEISHU_FIELD_MAP = {
     "不足之处": "limitations",
     "待解决疑点": "questions",
     "感悟启发": "inspiration",
+    "AI助手备注": "ai_assistant_notes",
     "Task": "task",
     "Domain": "domain",
     "Method": "method",

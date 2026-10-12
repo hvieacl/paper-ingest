@@ -52,6 +52,7 @@ def validate_output_language(analysis: PaperAnalysis) -> None:
         analysis.main_results,
         analysis.limitations,
         analysis.inspiration,
+        analysis.ai_assistant_notes,
         *analysis.key_innovations,
         *analysis.questions,
     ]

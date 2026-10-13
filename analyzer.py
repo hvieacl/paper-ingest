@@ -87,8 +87,10 @@ def analyze_paper(text: str) -> PaperAnalysis:
     api_key = os.environ["DEEPSEEK_API_KEY"]
     base_url = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
     model = os.environ["DEEPSEEK_MODEL"]
-    max_tokens = int(os.getenv("DEEPSEEK_MAX_TOKENS", "7000"))
+    base_max_tokens = int(os.getenv("DEEPSEEK_MAX_TOKENS", "12000"))
+    max_tokens_cap = int(os.getenv("DEEPSEEK_MAX_TOKENS_CAP", "24000"))
     max_retries = int(os.getenv("DEEPSEEK_MAX_RETRIES", "2"))
+    current_max_tokens = min(base_max_tokens, max_tokens_cap)
 
     client = OpenAI(api_key=api_key, base_url=base_url)
     system_prompt = load_system_prompt()
@@ -123,7 +125,7 @@ def analyze_paper(text: str) -> PaperAnalysis:
             ],
             response_format={"type": "json_object"},
             temperature=0.0 if attempt > 0 else 0.2,
-            max_tokens=max_tokens,
+            max_tokens=current_max_tokens,
         )
 
         record_usage(resp.usage)
@@ -143,11 +145,34 @@ def analyze_paper(text: str) -> PaperAnalysis:
         except (json.JSONDecodeError, ValidationError, OutputLanguageError) as exc:
             last_error = exc
 
-            if finish_reason == "length":
-                print(
-                    f"          ! DeepSeek 输出因长度被截断 "
-                    f"(max_tokens={max_tokens})"
+            likely_truncated_json = (
+                isinstance(exc, json.JSONDecodeError)
+                and (
+                    "Unterminated string" in str(exc)
+                    or exc.pos >= max(0, len(content) - 64)
                 )
+            )
+
+            if finish_reason == "length" or likely_truncated_json:
+                old_max_tokens = current_max_tokens
+                if current_max_tokens < max_tokens_cap:
+                    current_max_tokens = min(
+                        max_tokens_cap,
+                        max(current_max_tokens + 1, int(current_max_tokens * 1.5)),
+                    )
+                    print(
+                        f"          ! DeepSeek 输出疑似被截断 "
+                        f"(max_tokens={old_max_tokens})"
+                    )
+                    print(
+                        f"          ↑ 下次重试自动扩容至 "
+                        f"max_tokens={current_max_tokens}"
+                    )
+                else:
+                    print(
+                        f"          ! DeepSeek 输出疑似被截断，但已达到 "
+                        f"max_tokens 上限 {max_tokens_cap}"
+                    )
             else:
                 print(
                     f"          ! DeepSeek 结构化输出未通过校验："

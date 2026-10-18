@@ -15,16 +15,16 @@ echo 正在安装 paper-ingest 右键菜单...
 echo.
 
 reg add "%PDF_LOAD_KEY%" /ve /d "导入到 paper-ingest" /f >nul
-reg add "%PDF_LOAD_KEY%\command" /ve /d ""%LOAD_SCRIPT%" "%%1"" /f >nul
+reg add "%PDF_LOAD_KEY%\command" /ve /d "\"%LOAD_SCRIPT%\" \"%%1\"" /f >nul
 
 reg add "%PDF_SYNC_KEY%" /ve /d "使用缓存覆盖飞书" /f >nul
-reg add "%PDF_SYNC_KEY%\command" /ve /d ""%SYNC_SCRIPT%" "%%1"" /f >nul
+reg add "%PDF_SYNC_KEY%\command" /ve /d "\"%SYNC_SCRIPT%\" \"%%1\"" /f >nul
 
 reg add "%PDF_RERUN_KEY%" /ve /d "重新分析并覆盖飞书" /f >nul
-reg add "%PDF_RERUN_KEY%\command" /ve /d ""%RERUN_SCRIPT%" "%%1"" /f >nul
+reg add "%PDF_RERUN_KEY%\command" /ve /d "\"%RERUN_SCRIPT%\" \"%%1\"" /f >nul
 
 reg add "%DIR_KEY%" /ve /d "使用 paper-ingest 处理此文件夹" /f >nul
-reg add "%DIR_KEY%\command" /ve /d ""%LOAD_SCRIPT%" "%%1"" /f >nul
+reg add "%DIR_KEY%\command" /ve /d "\"%LOAD_SCRIPT%\" \"%%1\"" /f >nul
 
 if errorlevel 1 (
   echo [ERROR] 右键菜单安装失败。

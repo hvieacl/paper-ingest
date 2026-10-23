@@ -3,6 +3,7 @@ import os
 import time
 from typing import Any
 import requests
+from requests.exceptions import ConnectionError as RequestConnectionError, Timeout as RequestTimeout
 
 BASE = "https://open.feishu.cn/open-apis"
 
@@ -24,6 +25,9 @@ class FeishuBitableClient:
         self._token = None
         self._token_expire = 0.0
         self._fields = None
+        self.session = requests.Session()
+        self.session.trust_env = os.getenv("FEISHU_USE_PROXY", "0").strip() == "1"
+        self.read_retries = max(0, int(os.getenv("FEISHU_READ_RETRIES", "2")))
 
     @staticmethod
     def _clean_id(value: str, name: str) -> str:
@@ -44,11 +48,22 @@ class FeishuBitableClient:
             raise RuntimeError(f"{name} 格式无效")
         return value
 
+    def _read_request(self, method: str, url: str, **kwargs) -> requests.Response:
+        for attempt in range(self.read_retries + 1):
+            try:
+                return self.session.request(method, url, **kwargs)
+            except (RequestConnectionError, RequestTimeout) as exc:
+                if attempt >= self.read_retries:
+                    raise
+                print(f"      [飞书网络] {method} 请求连接失败，将重试 ({attempt + 1}/{self.read_retries})：{exc}")
+                time.sleep(min(2 ** attempt, 4))
+        raise RuntimeError("飞书读取请求未完成")
+
     def _tenant_token(self) -> str:
         if self._token and time.time() < self._token_expire - 120:
             return self._token
 
-        r = requests.post(
+        r = self._read_request("POST",
             f"{BASE}/auth/v3/tenant_access_token/internal",
             json={"app_id": self.app_id, "app_secret": self.app_secret},
             timeout=20,
@@ -88,7 +103,7 @@ class FeishuBitableClient:
         while True:
             if page_token:
                 params["page_token"] = page_token
-            r = requests.get(url, headers=self._headers(), params=params, timeout=20)
+            r = self._read_request("GET", url, headers=self._headers(), params=params, timeout=20)
             self._raise_api_error(r, "读取飞书字段")
             data = r.json()
             if data.get("code", 0) != 0:
@@ -121,7 +136,7 @@ class FeishuBitableClient:
         while True:
             if page_token:
                 params["page_token"] = page_token
-            r = requests.get(url, headers=self._headers(), params=params, timeout=30)
+            r = self._read_request("GET", url, headers=self._headers(), params=params, timeout=30)
             self._raise_api_error(r, "读取飞书记录")
             data = r.json()
             if data.get("code", 0) != 0:
@@ -143,22 +158,51 @@ class FeishuBitableClient:
     def create_record(self, fields: dict[str, Any]) -> dict[str, Any]:
         self.validate_field_names(fields)
         url = f"{BASE}/bitable/v1/apps/{self.app_token}/tables/{self.table_id}/records"
-        r = requests.post(
-            url,
-            headers=self._headers(),
-            json={"fields": fields},
-            timeout=30,
-        )
-        self._raise_api_error(r, "飞书写入")
-        data = r.json()
-        if data.get("code", 0) != 0:
-            raise RuntimeError(f"飞书写入失败：{data}")
-        return data
+        paper_hash = str(fields.get("PaperHash", "")).strip()
+
+        # POST 非幂等：连接中断后先检查是否实际写入成功，避免重复记录。
+        for attempt in range(2):
+            try:
+                r = self.session.post(
+                    url,
+                    headers=self._headers(),
+                    json={"fields": fields},
+                    timeout=30,
+                )
+            except (RequestConnectionError, RequestTimeout) as exc:
+                print(f"      [飞书网络] 写入连接中断，正在核对 PaperHash：{exc}")
+                if not paper_hash:
+                    raise RuntimeError("飞书写入响应丢失，且缺少 PaperHash，无法安全重试。") from exc
+                try:
+                    existing = self.find_by_hash(paper_hash)
+                except Exception as verify_exc:
+                    raise RuntimeError(
+                        "飞书写入响应丢失，且重新查询失败；无法确认是否已写入。"
+                        "请稍后普通导入，不要强制重跑。"
+                    ) from verify_exc
+                if existing:
+                    print("      ✓ 飞书已存在对应 PaperHash，确认写入成功（响应可能丢失）")
+                    return {"data": {"record": existing}}
+                if attempt == 0:
+                    print("      ↻ 核对未发现记录，准备重试一次写入")
+                    time.sleep(2)
+                    continue
+                raise RuntimeError(
+                    "飞书写入连续连接中断；已核对未找到记录。请稍后普通导入。"
+                ) from exc
+
+            self._raise_api_error(r, "飞书写入")
+            data = r.json()
+            if data.get("code", 0) != 0:
+                raise RuntimeError(f"飞书写入失败：{data}")
+            return data
+
+        raise RuntimeError("飞书写入未完成")
 
     def update_record(self, record_id: str, fields: dict[str, Any]) -> dict[str, Any]:
         self.validate_field_names(fields)
         url = f"{BASE}/bitable/v1/apps/{self.app_token}/tables/{self.table_id}/records/{record_id}"
-        r = requests.put(
+        r = self.session.put(
             url,
             headers=self._headers(),
             json={"fields": fields},
